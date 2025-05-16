@@ -1,22 +1,23 @@
 import bcryptjs from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import { User } from '../models/User.js'
+import User from '../models/user.model.js'
 
-
+// signup
 export const signup = async (req, res) => {
-    const { name, password, confirmPassword } = req.body
+    const { name, username, email, password, confirmPassword } = req.body
 
-    if (!name || !password || !confirmPassword) return res.status(400).json({ success: false, message: "All Fields are required!" })
+    if (!name || !password || !confirmPassword || !email || !username) return res.status(400).json({ success: false, message: "All Fields are required!" })
 
     if (password !== confirmPassword) return res.status(400).json({ success: false, message: "password and confirm password should be same!" })
 
-    let checkUser = await User.findOne({ name })
-    if (checkUser) return res.status(400).json({ success: false, message: "User Already Exists" })
+    let checkUser = await User.findOne({ $or: [{ name }, { email }] })
+    if (checkUser?.name == name) return res.status(400).json({ success: false, message: "user name Already Exists! use a different name" })
+    if (checkUser?.email == email) return res.status(400).json({ success: false, message: "user email Already Exists! use a different email" })
 
     const hashedPass = bcryptjs.hashSync(password, 10)
 
-    const newUser = new User({ name, password: hashedPass })
-    newUser.save()
+    const newUser = new User({ name, username, email, password: hashedPass })
+    await newUser.save()
 
     res.status(200).json({
         success: true,
@@ -25,6 +26,7 @@ export const signup = async (req, res) => {
     })
 }
 
+// login
 export const login = async (req, res) => {
     const { name, password } = req.body
 
@@ -35,8 +37,11 @@ export const login = async (req, res) => {
     const validPass = bcryptjs.compareSync(password, user.password)
     if (!validPass) return res.status(400).json({ success: false, message: "Password is Incorrect" })
 
+    if (!user.isActive) return res.status(401).json({ success: false, message: "your access has been revoked by admin" })
+
 
     const token = jwt.sign({ id: user._id, name: user.name }, process.env.JWT_SECRET)
+
 
 
     res.status(200).json({
@@ -48,13 +53,25 @@ export const login = async (req, res) => {
 
 }
 
+export const getUser = (req, res, next) => {
+    try {
+        const user = req?.user
+        if (!user) res.status(401).json({ success: false, message: "could not get user" })
+
+        res.status(200).json({ success: true, user, message: "got the user" })
+
+    } catch (error) {
+        next(error)
+    }
+
+}
+
 // change password
 export const changeUserCredentials = async (req, res) => {
 
     let { oldPassword, newPassword } = req.body
     let { userId } = req?.params
 
-    console.log(userId)
     let user = await User.findOne({ _id: userId })
 
     if (!user) return res.status(401).json({ success: false, message: "user doesn't exist" })
@@ -67,7 +84,6 @@ export const changeUserCredentials = async (req, res) => {
 
     if (!newPassword) return res.status(401).json({ success: false, message: "add a new password" })
 
-        console.log(user)
     const hashNewPass = await bcryptjs.hashSync(newPassword, 10)
     await User.findByIdAndUpdate(userId, { password: hashNewPass }, { new: true })
 
