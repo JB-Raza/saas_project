@@ -1,6 +1,6 @@
 import bcryptjs from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import Admin from '../models/AdminUser.model.js'
+import Admin from '../models/admin.model.js'
 
 
 
@@ -46,7 +46,7 @@ export const login = async (req, res) => {
 
 
     
-  const token = jwt.sign({ id: user._id, email: user.email }, process.env.JWT_SECRET, { expiresIn: "1h" })
+  const token = jwt.sign({ id: user._id, email: user.email }, process.env.JWT_SECRET)
 
 
   res.status(200).json({
